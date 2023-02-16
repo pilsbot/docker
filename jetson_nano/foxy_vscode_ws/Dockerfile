@@ -28,11 +28,11 @@ RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime \
   && rm -rf /var/lib/apt/lists/*
 
 ENV ROS_DISTRO=foxy
-ENV AMENT_PREFIX_PATH=/opt/ros/foxy
-ENV COLCON_PREFIX_PATH=/opt/ros/foxy
-ENV LD_LIBRARY_PATH=/opt/ros/foxy/lib
-ENV PATH=/opt/ros/foxy/bin:$PATH
-ENV PYTHONPATH=/opt/ros/foxy/lib/python3.8/site-packages
+ENV AMENT_PREFIX_PATH=/opt/ros/foxy/install
+ENV COLCON_PREFIX_PATH=/opt/ros/foxy/install
+ENV LD_LIBRARY_PATH=/opt/ros/foxy/install/lib
+ENV PATH=/opt/ros/foxy/install/bin:$PATH
+ENV PYTHONPATH=/opt/ros/foxy/install/lib/python3.6/site-packages
 ENV ROS_PYTHON_VERSION=3
 ENV ROS_VERSION=2
 ENV DEBIAN_FRONTEND=
@@ -52,7 +52,7 @@ RUN groupadd --gid $USER_GID $USERNAME \
   # Cleanup
   && rm -rf /var/lib/apt/lists/* \
   && echo "source /usr/share/bash-completion/completions/git" >> /home/$USERNAME/.bashrc \
-  && echo "if [ -f /opt/ros/${ROS_DISTRO}/setup.bash ]; then source /opt/ros/${ROS_DISTRO}/setup.bash; fi" >> /home/$USERNAME/.bashrc
+  && echo "if [ -f /opt/ros/${ROS_DISTRO}/install/setup.bash ]; then source /opt/ros/${ROS_DISTRO}/install/setup.bash; fi" >> /home/$USERNAME/.bashrc
 
 ENV DEBIAN_FRONTEND=
 ENV AMENT_CPPCHECK_ALLOW_SLOW_VERSIONS=1
@@ -60,18 +60,8 @@ ENV AMENT_CPPCHECK_ALLOW_SLOW_VERSIONS=1
 RUN mkdir -p /workspaces/addon_ws/src
 WORKDIR /workspaces/addon_ws
 
-RUN cd src && git clone -b ${ROS_DISTRO} https://github.com/ros-controls/ros2_control.git \
-    && git clone -b ${ROS_DISTRO}-devel https://github.com/ros-controls/control_msgs.git \
-    && git clone -b ${ROS_DISTRO}-devel https://github.com/ros-controls/realtime_tools.git \
-    && git clone -b ros2 https://github.com/ros-drivers/ackermann_msgs.git \
-    && git clone -b ${ROS_DISTRO} https://github.com/luxonis/depthai-ros.git
-    # && git clone -b ${ROS_DISTRO} https://github.com/ros2/rviz.git \
-    # && git clone -b ros2 https://github.com/ros-visualization/rqt.git \
-    # && git clone -b ${ROS_DISTRO}-devel https://github.com/ros-visualization/qt_gui_core.git
-
 RUN apt-get update && apt-get -y install libusb-1.0-0-dev \
-     && rosdep install --from-paths src --ignore-src -r -y --skip-keys=libopencv-dev\
-     && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 RUN export MAKEFLAGS="-j$(nproc)" && cd /tmp && git clone --recursive https://github.com/luxonis/depthai-core.git --branch main \
     && cmake -Hdepthai-core -Bdepthai-core/build -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local \
@@ -79,9 +69,28 @@ RUN export MAKEFLAGS="-j$(nproc)" && cd /tmp && git clone --recursive https://gi
     && cd /tmp \
     && rm -r depthai-core
 
+RUN cd src && git clone -b ${ROS_DISTRO} https://github.com/ros-controls/ros2_control.git \
+    && git clone -b ${ROS_DISTRO}-devel https://github.com/ros-controls/control_msgs.git \
+    && git clone -b ${ROS_DISTRO}-devel https://github.com/ros-controls/realtime_tools.git \
+    && git clone -b ros2 https://github.com/ros-drivers/ackermann_msgs.git \
+    && git clone -b ${ROS_DISTRO}-devel https://github.com/ros/angles.git \
+    && git clone -b ${ROS_DISTRO} https://github.com/ros-controls/ros2_controllers.git \
+    && git clone https://github.com/ros-controls/control_toolbox.git \
+    && git clone -b ${ROS_DISTRO} https://github.com/luxonis/depthai-ros.git \
+    && git clone -b ${ROS_DISTRO} https://github.com/ros/joint_state_publisher.git \
+    && git clone -b ${ROS_DISTRO} https://github.com/ros2/teleop_twist_joy.git \
+    && git clone -b ${ROS_DISTRO}-devel https://github.com/ros-drivers/joystick_drivers.git
+    # && git clone -b ${ROS_DISTRO} https://github.com/ros2/rviz.git \
+    # && git clone -b ros2 https://github.com/ros-visualization/rqt.git \
+    # && git clone -b ${ROS_DISTRO}-devel https://github.com/ros-visualization/qt_gui_core.git
+
+RUN apt-get update && rosdep install --from-paths src --ignore-src -r -y --skip-keys=libopencv-dev\
+     && rm -rf /var/lib/apt/lists/*
+
 RUN source /opt/ros/foxy/install/setup.bash && \
     colcon build --merge-install --symlink-install --cmake-args '-DCMAKE_BUILD_TYPE=Release' \
-    '-DCMAKE_EXPORT_COMPILE_COMMANDS=On' -Wall -Wextra -Wpedantic
+    '-DCMAKE_EXPORT_COMPILE_COMMANDS=On' '-DBUILD_TESTING=OFF' -Wall -Wextra -Wpedantic \
+    && rm -r build/ log/ src/
 
 COPY ./ros_entrypoint.sh /
 
